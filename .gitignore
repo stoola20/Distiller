@@ -24,11 +24,11 @@ ios/.build/
 ios/Pods/
 
 # Cloudflare Worker
-worker/node_modules/
-worker/.wrangler/
-worker/dist/
-worker/.dev.vars
-worker/*.log
+cloudflare/node_modules/
+cloudflare/.wrangler/
+cloudflare/dist/
+cloudflare/.dev.vars
+cloudflare/*.log
 
 # Custom
 distiller-project-spec.md
