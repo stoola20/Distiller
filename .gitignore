@@ -1,0 +1,37 @@
+# Xcode
+## User settings
+.DS_Store
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/**/*.xcuserstate
+ios/DerivedData/
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
+ios/xcshareddata/
+*.playground/timeline.xctimeline
+
+## Obj-C/Swift specific
+*.hmap
+
+## App packaging
+*.ipa
+*.dSYM.zip
+*.dSYM
+*.moved-aside
+
+# Swift Package Manager & CocoaPods
+ios/.build/
+ios/Pods/
+
+# Cloudflare Worker
+worker/node_modules/
+worker/.wrangler/
+worker/dist/
+worker/.dev.vars
+worker/*.log
+
+# Custom
+distiller-project-spec.md
+.env
+.env.local
+.dev.vars
