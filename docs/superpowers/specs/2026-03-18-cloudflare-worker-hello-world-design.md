@@ -24,6 +24,28 @@ cloudflare/
     └── index.ts        # 單一入口，一個 GET / 路由
 ```
 
+### wrangler.toml 最小設定
+
+```toml
+name = "distiller-api"
+main = "src/index.ts"
+compatibility_date = "2025-01-01"
+```
+
+### tsconfig.json 最小設定
+
+```json
+{
+  "compilerOptions": {
+    "target": "ES2020",
+    "module": "ES2020",
+    "moduleResolution": "bundler",
+    "types": ["@cloudflare/workers-types"],
+    "strict": true
+  }
+}
+```
+
 ## API 設計
 
 ```
@@ -35,8 +57,9 @@ GET /
 
 1. `wrangler` CLI 安裝成功
 2. `wrangler login` 授權 Cloudflare 帳號成功
-3. `wrangler deploy` 成功，拿到 `*.workers.dev` URL
-4. `curl https://<worker>.workers.dev/` 回傳 `{"success":true,"message":"Distiller API is alive"}`
+3. `wrangler dev` 本地啟動成功，可打 `curl http://localhost:8787/` 驗證
+4. `wrangler deploy` 成功，拿到 `*.workers.dev` URL
+5. `curl -i https://<worker>.workers.dev/` 回傳 HTTP 200 且 body 為 `{"success":true,"message":"Distiller API is alive"}`
 
 ## 不在此範圍內
 
