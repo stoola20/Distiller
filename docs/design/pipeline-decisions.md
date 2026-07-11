@@ -22,6 +22,7 @@
 
 **收集：手動優先，兩條路**
 - ① Share Extension 收 **URL**（社群 App 分享只給 URL，不給內容）：YT/網頁/Threads/公開 FB → App 端抓內容（逐字稿 / Jina Reader 正文 / OG 標籤）→ 處理。
+  - **交棒機制：extension 只收件、不處理**——把 URL 寫進 App Group 共享容器的收件匣（item 標 `pending`）即返回；抓內容與 LLM 呼叫都在**主 App 進前景時**做。理由：extension 生命週期秒級、記憶體上限低，等不了 30 秒級的 multimodal 呼叫；background `URLSession` 跨 process 交付結果又太複雜。取捨：分享後要等下次開 App 才看得到處理結果——可接受，Feed 本來就是開 App 才看。
 - ② 批次上傳圖檔（PhotosPicker 多選）：書籍拍照、IG 圖文貼文截圖 → 一次 multimodal 呼叫（P1/P5）。**書籍與圖文截圖是同一個功能。**
 - 硬限制：**IG／私密 FB 有登入牆**，App 拿 URL 抓不到內容 → 只能走 ② 截圖，或（未來）Mac agent 用登入身份抓。② 省的是匯入，IG 輪播仍要手動截圖；零截圖只有 Mac agent。
 
@@ -166,7 +167,7 @@ category text not null default '其他'
 - `canonicalURL`（正規化後，本地去重用；**不設 unique 屬性**，見第 2 節）
 - `sourceType`：`ig` / `yt` / `fb` / `web` / `threads` / `book`
 - `extractedText`：OCR 原文、YT 逐字稿、書頁文字留底
-- `status`：`processed`｜`pending`（IG/FB 連結等 Mac agent 補內容）｜`processingFailed`（LLM 重試後仍失敗）
+- `status`：`processed`｜`pending`（待處理：Share Extension 剛收件、或 IG/FB 連結等 Mac agent 補內容）｜`processingFailed`（LLM 重試後仍失敗）
 - 書籍（`book`）另存 `bookTitle` / `bookAuthor`（P5 抽出，可能為空）
 
 **CloudKit 限制**：屬性要有預設值或 optional、關聯要 optional、不能用 `@Attribute(.unique)`。

@@ -99,9 +99,9 @@
 **目標**：日常真的用得起來——多種來源都能收、Feed/詳細/探索/設定齊備、實機日用。
 
 ### M2.1 其餘收集路徑
-- Share Extension（收 **URL**）：YT/網頁/Threads/公開 FB → App 端抓內容（YT 逐字稿、Jina Reader 正文、OG 標籤）→ 對應 P2/P3
-- 書籍拍照走 P5（沿用 M1.5 的批次上傳，另存 bookTitle/bookAuthor）
-- 送出走 background `URLSession`；圖片壓到 2048px 長邊
+- Share Extension（收 **URL**）：**只收件、不處理**——URL 寫進 App Group 收件匣、item 標 `pending` 即返回（extension 生命週期秒級，等不了 LLM；決策見 `pipeline-decisions.md` 第 0 節）
+- 主 App 進前景時掃 `pending` 佇列：抓內容（YT 逐字稿、Jina Reader 正文、OG 標籤）→ 對應 P2/P3 → 更新為 `processed`
+- 書籍拍照走 P5（沿用 M1.5 的批次上傳，另存 bookTitle/bookAuthor）；圖片壓到 2048px 長邊再進 multimodal
 - 去重：插入前 fetch 查 `canonicalURL`；另做 App 進前景時的跨裝置 reconciliation（兩台裝置各插一筆同 URL 的 race，合併規則見 `pipeline-decisions.md` 第 2 節）
 
 ### M2.2 Detail / Explore / Settings
