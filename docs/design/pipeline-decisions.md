@@ -1,7 +1,35 @@
 # 內容處理管線 — 設計決策
 
-> 2026-07-03 定稿。這份文件釘死 spec 裡的模糊地帶：標籤系統、去重、電子報邏輯、模型選擇。
+> 2026-07-03 定稿，**2026-07-11 大改（見第 0 節）**。這份文件釘死 spec 裡的模糊地帶。
 > 每項決策都附「為什麼」，未來要改的時候先讀完取捨再動手。
+> **第 0 節（架構定案）凌駕以下各節與原 spec；各節內若與第 0 節衝突，以第 0 節為準。**
+
+---
+
+## 0. 架構定案（2026-07-11：server-centric → phone-centric）
+
+原設計是 server-centric（Cloudflare Worker + Supabase + 電子報 + 自動監控），為「後端自動化為主」而生。實際使用是「手動收集為主、圖片與長文為大宗」，故翻轉為 **phone-centric**。
+
+**儲存：SwiftData + CloudKit（不用 Supabase）**
+- App 是唯一消費者；CloudKit 私有庫同步使用者的裝置 + 自動備份；離線、免 server、貼 SwiftUI/TCA。
+- 取捨：放掉「server 端能讀全部 items」的能力，所以電子報、自動監控因此延後。要回歸時才引入 server。
+
+**處理：App 直接呼叫 provider API（無 Worker）**
+- 手機碰不到睡著的個人電腦，且 Worker（serverless 函式、非常駐機器）不能開子行程跑 CLI；App 內用 URLSession 直接打 API 最簡單、隨時可用。
+- `ContentProcessor` 協定（TCA DependencyClient pattern）切換供應商：Claude 現做，OpenAI/Gemini 為分發 BYO-key 預留，Apple Intelligence 端上為未來。
+- **BYO-key**：使用者自帶 key，存 Keychain，直接從裝置打 provider，**不經過任何 server**（零金鑰責任）——這是「未來發給別人用」的乾淨前提。
+- 取捨：付 API（手動量約 US$50–200/yr）。免費 Claude Pro（`claude -p` CLI）省成本路徑延後到 Mac Mini（常駐）到位——它需要手機↔電腦的常駐信箱，Mac Mini 之前不划算。
+
+**收集：手動優先，兩條路**
+- ① Share Extension 收 **URL**（社群 App 分享只給 URL，不給內容）：YT/網頁/Threads/公開 FB → App 端抓內容（逐字稿 / Jina Reader 正文 / OG 標籤）→ 處理。
+- ② 批次上傳圖檔（PhotosPicker 多選）：書籍拍照、IG 圖文貼文截圖 → 一次 multimodal 呼叫（P1/P5）。**書籍與圖文截圖是同一個功能。**
+- 硬限制：**IG／私密 FB 有登入牆**，App 拿 URL 抓不到內容 → 只能走 ② 截圖，或（未來）Mac agent 用登入身份抓。② 省的是匯入，IG 輪播仍要手動截圖；零截圖只有 Mac agent。
+
+**延後（回歸時才引入 server，用同一個縫加回去）**
+- 電子報（第 3 節）、YouTube 自動監控、OpenClaw IG/FB 巡邏、Notion 同步。
+- Mac agent（Mac Mini，登入抓 IG/FB）：分享 URL → 存 pending → agent 抓內容 → Push 通知匯入；睡眠時等下次開機。需要一個小共享信箱（server/queue）當中繼，因為 Mac 讀不到手機 CloudKit 私有庫。
+
+**新增 source type**：`threads`、`book`（原本只有 `ig`/`yt`/`fb`/`web`）。
 
 ---
 
@@ -27,8 +55,8 @@
 | 思維成長 | 思維模型、生產力、職涯、人際溝通 |
 | 其他 | （無子標籤，tags 允許空陣列） |
 
-清單的唯一真源（single source of truth）放在 `cloudflare/src/prompts/taxonomy.ts`，
-prompt 組裝時從這裡帶入。App 端的篩選 chips 也從 API 取得，不要在 iOS 寫死第二份。
+清單的唯一真源（single source of truth）放在 App 的 `Taxonomy.swift`（設計真源仍是本文件）。
+prompt 組裝與 Feed 篩選 chips 都從這個常數帶入，不要寫死第二份。
 
 ### 為什麼
 
@@ -54,14 +82,15 @@ category text not null default '其他'
 
 ---
 
-## 2. 去重：canonical URL 唯一索引
+## 2. 去重：canonical URL 本地查詢（2026-07-11 改）
 
 ### 決策
 
-新增 `canonical_url` 欄位＋唯一索引。`POST /api/items` 收到 URL 先正規化，
-撞到既有 item 就直接回傳該 item（HTTP 200 加 `"duplicate": true`），不重複處理、不重複扣 API 費用。
+每則 item 存正規化後的 `canonical_url`。收到 URL 先正規化，**插入 SwiftData 前先 fetch 查有沒有同 `canonical_url` 的既有 item**；撞到就直接顯示既有 item、不重複處理、不重複扣 API 費用。
 
-正規化規則（實作在 `cloudflare/src/utils/canonical-url.ts`）：
+> 原設計用 Postgres `canonical_url` 唯一索引擋重。改 SwiftData + CloudKit 後**不能用 `@Attribute(.unique)`**（CloudKit 同步不支援），故改為插入前的本地 fetch 查詢。正規化規則不變，只是實作從 TS 移到 Swift `CanonicalURL.swift`。
+
+正規化規則（Swift `CanonicalURL.swift`，行為對齊原 `cloudflare/src/utils/canonical-url.ts`）：
 
 1. host 轉小寫、移除尾端 `/`
 2. 移除追蹤參數：`utm_*`、`fbclid`、`igsh`、`igshid`、`si`、`feature`、`ref`
@@ -70,21 +99,18 @@ category text not null default '其他'
    - Instagram：貼文一律轉成 `https://www.instagram.com/p/<shortcode>/`（涵蓋 `/reel/`）
 4. 其餘參數保留（有些網站用 query 區分文章）
 
-```sql
-canonical_url text not null,
--- 唯一索引
-create unique index items_canonical_url_idx on items (canonical_url);
-```
-
 ### 為什麼
 
-- 三條輸入管道（手動分享、YT 排程、OpenClaw 巡邏）**一定**會撞到同一則內容，去重不做，電子報和 Feed 都會重複。
-- URL 層去重涵蓋 95% 的情況且零成本。內容層去重（同一篇文章出現在不同網址）需要 hash 或 embedding 比對，複雜度高、收益低，**列為 future，v1 不做**。
-- 回傳既有 item 而不是回 409 錯誤：Share Extension 的使用情境是「按了就走」，冪等回傳讓重複分享無感，不需要在 iOS 端處理錯誤 UI。
+- 手動分享同一則內容（不同時間、不同裝置、或未來加上 YT 監控）會撞到，去重不做 Feed 會重複。
+- URL 層去重涵蓋 95% 的情況且近乎零成本。內容層去重（同一篇文章出現在不同網址）需要 hash 或 embedding 比對，複雜度高、收益低，**列為 future，v1 不做**。
+- 撞到直接顯示既有 item（不報錯）：Share Extension 的使用情境是「按了就走」，無感冪等，不需要在 App 端處理錯誤 UI。
+- 純圖片上傳（無 URL，如書頁、截圖）沒有 `canonical_url` 可比對，v1 不對圖片做去重（成本低、重複機率小）。
 
 ---
 
-## 3. 電子報邏輯
+## 3. 電子報邏輯（**已延後**，見第 0 節）
+
+> phone-centric 之後 server 讀不到 items，電子報整段延後。以下決策保留，回歸（引入 server 那份 items 同步）時直接沿用。
 
 ### 日報：不用 LLM
 
@@ -110,40 +136,48 @@ create unique index items_canonical_url_idx on items (canonical_url);
 
 ---
 
-## 4. 模型選擇
+## 4. 模型／供應商選擇（2026-07-11 改為多供應商 BYO-key）
 
-| 用途 | 模型 | 為什麼 |
+處理不綁單一供應商，走 `ContentProcessor` 協定，實作各自打不同 provider 的 API：
+
+| 供應商 | 現況 | 為什麼 |
 |------|------|--------|
-| 內容處理（OCR＋翻譯＋摘要＋標籤） | `claude-sonnet-5` | 需要多模態＋穩定 JSON。Haiku 的 OCR 和翻譯品質不夠，Opus 對這種模板化任務是浪費 |
-| 週報歸納 | `claude-sonnet-5` | 跨內容歸納需要一定推理力，每週只跑一次，成本可忽略 |
-| 日報 | 不用 LLM | 見上節 |
+| Claude（`claude-sonnet-5`） | **現做** | 需要多模態＋穩定 JSON；圖文 OCR/翻譯品質夠。dev 用開發者自己的 key |
+| OpenAI / Gemini | 為分發 BYO-key 預留 | 未來發給別人用時，每個使用者選供應商、填自己的 key |
+| Apple Intelligence（端上） | 未來 | 純隱私/離線場景；~3B 端上模型對外語 OCR＋翻譯偏弱，不當主力 |
 
-模型 ID 放環境變數（`wrangler secret` 或 vars），不寫死在程式裡，方便日後升級。
+- **不寫死模型**：供應商與模型 ID 存設定（App 內），方便切換升級。
+- **key 走 BYO-key**：使用者自帶、存 Keychain、直接從裝置打 provider，不落 server（見第 0 節）。
+- 週報歸納（若電子報回歸）沿用同一套供應商；每週一次，成本可忽略。日報不用 LLM。
 
-成本粗估：每則內容約 2k–5k input tokens（圖片另計）＋1k output，Sonnet 價位下每則約 US$0.02–0.05。
-一天 10 則、一年 3,650 則 ≈ US$100–180／年。量到十倍時再評估把網頁類降到 Haiku。
-
----
-
-## 5. Schema 變更彙總（相對於 spec）
-
-```sql
-alter table items add column category text not null default '其他';
-alter table items add column canonical_url text not null;
-alter table items add column extracted_text text;  -- OCR 原文或 YT 逐字稿留底
-alter table items add column status text not null default 'processed';
-  -- processed｜pending（IG/FB 連結等 OpenClaw 補內容）｜processing_failed（LLM 重試後仍失敗）
-create unique index items_canonical_url_idx on items (canonical_url);
-```
-
-完整建表 SQL 在 `cloudflare/migrations/001_items.sql`。
-
-`extracted_text` 的理由：圖片的 OCR 原文和 YT 逐字稿如果不留底，未來 prompt 改版想重新處理就得重抓（IG 圖可能已失效、YT 逐字稿要重打 API）。文字儲存很便宜，這是保險。
+成本粗估：每則約 2k–5k input tokens（圖片另計）＋1k output，Sonnet 價位下每則約 US$0.02–0.05。手動量一天 5–15 則 ≈ **US$50–200／年**。這也是「免費 Claude Pro CLI」省成本路徑延後（Mac Mini 到位再做）的原因——省的金額不大，不值得現在多養一套常駐信箱。
 
 ---
 
-## Future（記下來，v1 不做）
+## 5. 資料模型（2026-07-11 改為 SwiftData `@Model`）
+
+`Item` 存在 SwiftData（CloudKit 私有庫同步）。相對原 spec 表的重點欄位：
+
+- `category`（預設「其他」）、`tags` / `auto_tags`
+- `canonicalURL`（正規化後，本地去重用；**不設 unique 屬性**，見第 2 節）
+- `sourceType`：`ig` / `yt` / `fb` / `web` / `threads` / `book`
+- `extractedText`：OCR 原文、YT 逐字稿、書頁文字留底
+- `status`：`processed`｜`pending`（IG/FB 連結等 Mac agent 補內容）｜`processingFailed`（LLM 重試後仍失敗）
+- 書籍（`book`）另存 `bookTitle` / `bookAuthor`（P5 抽出，可能為空）
+
+**CloudKit 限制**：屬性要有預設值或 optional、關聯要 optional、不能用 `@Attribute(.unique)`。
+
+`extractedText` 的理由：OCR 原文、逐字稿、書頁文字若不留底，未來 prompt 改版想重新處理就得重抓（IG 圖可能已失效、YT 逐字稿要重打 API、書本可能已還）。文字儲存很便宜，這是保險。
+
+> 原 Postgres 建表 SQL 保留在 `cloudflare/migrations/001_items.sql`（dormant，僅供欄位對照）。
+
+---
+
+## Future（記下來，現在不做）
 
 - 內容層去重（同文異址）：hash 或 embedding 比對
-- `noteworthy` 品質評分欄位：Sprint 4 OpenClaw 自動巡邏上線後，雜訊量會變大，屆時在處理 prompt 加一個「值不值得留」的判斷，低分內容不進日報。現在只有手動分享，分享本身就是品質篩選，不需要
-- Haiku 降級路徑（純文字網頁類）
+- **延後功能回歸**：電子報、YouTube 監控、Notion 同步——都需要一份 server 端的 items（App 啟用時同步上去，或走 CloudKit Web Services 讓 server 讀私有庫）
+- **Mac agent（登入抓 IG/FB）**：Mac Mini 到位後做，含中繼的小共享信箱 + Push 通知（見第 0 節）
+- **免費 Claude Pro（`claude -p` CLI）省成本路徑**：Mac Mini 常駐後值得做
+- `noteworthy` 品質評分欄位：自動巡邏上線後雜訊變多，屆時在處理 prompt 加「值不值得留」判斷。現在只有手動收集，收集本身就是品質篩選，不需要
+- 更弱/更省模型的降級路徑（純文字類）
