@@ -102,7 +102,7 @@
 - Share Extension（收 **URL**）：YT/網頁/Threads/公開 FB → App 端抓內容（YT 逐字稿、Jina Reader 正文、OG 標籤）→ 對應 P2/P3
 - 書籍拍照走 P5（沿用 M1.5 的批次上傳，另存 bookTitle/bookAuthor）
 - 送出走 background `URLSession`；圖片壓到 2048px 長邊
-- 去重：插入前 fetch 查 `canonicalURL`（見 `pipeline-decisions.md` 第 2 節）
+- 去重：插入前 fetch 查 `canonicalURL`；另做 App 進前景時的跨裝置 reconciliation（兩台裝置各插一筆同 URL 的 race，合併規則見 `pipeline-decisions.md` 第 2 節）
 
 ### M2.2 Detail / Explore / Settings
 - Detail：完整摘要（markdown）、原文連結、標籤顯示與編輯；進入時標 is_read

@@ -90,6 +90,10 @@ category text not null default '其他'
 
 > 原設計用 Postgres `canonical_url` 唯一索引擋重。改 SwiftData + CloudKit 後**不能用 `@Attribute(.unique)`**（CloudKit 同步不支援），故改為插入前的本地 fetch 查詢。正規化規則不變，只是實作從 TS 移到 Swift `CanonicalURL.swift`。
 
+**跨裝置 race 與 reconciliation**：插入前 fetch 只擋得住「本機」重複——iPhone 和 iPad 各自（離線或同步延遲間）分享同一則內容時，兩邊本地查詢都查不到，CloudKit 同步後 Feed 就會出現兩筆。單人情境發生率低但一定會遇到，補救便宜：**App 進前景時跑一次 reconciliation**——查全庫重複的 `canonicalURL`，保留 `createdAt` 較早的那筆，把較晚那筆使用者可能已改過的欄位（`tags`、`is_read`）合併過去再刪除。決策要點：
+- 掛在「進前景」而不是監聽 CloudKit 同步事件：時機粗一點但實作簡單得多，重複多顯示幾分鐘無害。
+- 「保留較早那筆」是為了讓兩台裝置各自 reconcile 時收斂到同一筆（deterministic），不能用「保留本機那筆」這種兩邊結論不同的規則。
+
 正規化規則（Swift `CanonicalURL.swift`，行為對齊原 `cloudflare/src/utils/canonical-url.ts`）：
 
 1. host 轉小寫、移除尾端 `/`
