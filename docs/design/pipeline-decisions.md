@@ -181,6 +181,7 @@ category text not null default '其他'
 ## Future（記下來，現在不做）
 
 - 內容層去重（同文異址）：hash 或 embedding 比對
+- **零 server 推送補償**：本地通知（未讀提醒）＋ Widget（最近摘要），補電子報延後失去的「推力」；比電子報回歸便宜得多，優先做
 - **延後功能回歸**：電子報、YouTube 監控、Notion 同步——都需要一份 server 端的 items（App 啟用時同步上去，或走 CloudKit Web Services 讓 server 讀私有庫）
 - **Mac agent（登入抓 IG/FB）**：Mac Mini 到位後做，含中繼的小共享信箱 + Push 通知（見第 0 節）
 - **免費 Claude Pro（`claude -p` CLI）省成本路徑**：Mac Mini 常駐後值得做

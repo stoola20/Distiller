@@ -120,6 +120,7 @@
 
 # Sprint 3+ — 延後與進階（順序視需要）
 
+- **零 server 的推送補償**：電子報延後拿掉了「知識送到面前」的推力，先用本地手段補——每日/每週本地通知（「本週收了 N 則、最舊 3 則未讀」）＋ Widget 顯示最近摘要。零 server、成本一天內，先做這個再考慮電子報回歸
 - **多供應商 processor**：OpenAI / Gemini（分發 BYO-key 前置）
 - **Apple Intelligence 端上 processor**：純隱私/離線場景
 - **Mac agent（Mac Mini 到位）**：登入抓 IG/FB 零截圖 + 小共享信箱 + Push 通知（見 `pipeline-decisions.md` 第 0、Future 節）
