@@ -78,12 +78,14 @@
 
 - `Features/Capture/`：`PhotosPicker` 多選 → 顯示待處理圖 → 送 `ContentProcessor` → 存 SwiftData
 - 這是第一個完整 TCA feature，寫慢一點：`State`（selectedImages、isProcessing）、`Action`（imagesPicked、process、processed(Result)）、Reducer 回 `.run` effect 打 processor
+- 存 SwiftData 一樣走 dependency client（`@Dependency(\.itemDatabase)`），不要在 effect 裡直接摸 `ModelContext`——`@Model` 與 TCA 的邊界原則見 M1.6 的坑註記
 - 為它寫 `TestStore` 測試（成功、失敗降級）——第一次體驗 TCA「全查」
 - **驗收**：模擬器選幾張黑底白字圖文 → 幾秒後 SwiftData 多一筆完整六欄位 item；測試綠
 
 ### M1.6 Feed feature（最小可視）
 
 - `Features/Feed/`：卡片列表讀 SwiftData（來源 icon、作者/書名、一句話摘要、標籤 chips、時間），未讀藍點
+- **坑：`@Model` 是 reference type，不要直接放進 TCA `State`**——State 靠 Equatable value semantics 運作，reference 相等 ≠ 內容相等，`TestStore` 的全查會形同虛設，物件也可能在 reducer 外被偷改（對照 RxSwift：等於把 mutable model 塞進 `BehaviorRelay` 還期望 `distinctUntilChanged` 有用）。做法：SwiftData 存取包成 dependency client（`@Dependency(\.itemDatabase)`，fetch/insert/update 都走它），fetch 結果投影成 plain struct（如 `ItemRowData: Equatable, Identifiable`）進 State；寫回時用 id 找回 `@Model` 再改。後續 Detail（M2.2）沿用同一模式
 - 頂部 category 篩選 chips（從 `Taxonomy.swift` 來）
 - **驗收**：M1.5 上傳的內容出現在 Feed，中文摘要正確；重啟仍在
 
