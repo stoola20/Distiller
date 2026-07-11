@@ -103,6 +103,7 @@
 ### M2.1 其餘收集路徑
 - Share Extension（收 **URL**）：**只收件、不處理**——URL 寫進 App Group 收件匣、item 標 `pending` 即返回（extension 生命週期秒級，等不了 LLM；決策見 `pipeline-decisions.md` 第 0 節）
 - 主 App 進前景時掃 `pending` 佇列：抓內容（YT 逐字稿、Jina Reader 正文、OG 標籤）→ 對應 P2/P3 → 更新為 `processed`
+- **YT 逐字稿是整條收集裡最脆弱的一環，難度別低估**：沒有官方 API，等於用 Swift 自打 YouTube 私有的 innertube 端點（無成熟 Swift 套件，請求形狀參考 `youtubei.js`），隨時可能被改壞。fallback 順序寫死：逐字稿 → 抓不到改用標題＋描述（oEmbed/OG）進 P2 並在 detail 註記「無逐字稿」→ 連標題都抓不到就留 `pending` 待重試。**不變式：任何一步失敗都不可讓這筆收集整筆丟失**
 - 書籍拍照走 P5（沿用 M1.5 的批次上傳，另存 bookTitle/bookAuthor）；圖片壓到 2048px 長邊再進 multimodal
 - 去重：插入前 fetch 查 `canonicalURL`；另做 App 進前景時的跨裝置 reconciliation（兩台裝置各插一筆同 URL 的 race，合併規則見 `pipeline-decisions.md` 第 2 節）
 
