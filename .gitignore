@@ -31,7 +31,6 @@ cloudflare/.dev.vars
 cloudflare/*.log
 
 # Custom
-distiller-project-spec.md
 .env
 .env.local
 .dev.vars
