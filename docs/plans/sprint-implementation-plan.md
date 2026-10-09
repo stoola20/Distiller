@@ -46,7 +46,7 @@
 
 ### M1.1 專案骨架
 
-- Xcode 專案：主 App target ＋（Sprint 2 才加）Share Extension target，目錄照 `.claude/CLAUDE.md` 結構
+- Xcode 專案：主 App target ＋（Sprint 2 才加）Share Extension target，目錄照 `AGENTS.md` 結構
 - SPM 加 `swift-composable-architecture`（含 `swift-dependencies`）
 - **開啟 CloudKit**：Signing & Capabilities 加 iCloud → CloudKit，建一個 container；App Group（`group.com.stoola20.distiller`）為 Share Extension 預留
 - **驗收**：App build 過、跑得起來，模擬器登入 iCloud 帳號

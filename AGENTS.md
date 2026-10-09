@@ -1,4 +1,4 @@
-# CLAUDE.md — Distiller
+# AGENTS.md — Distiller
 
 ## 專案簡介
 
@@ -27,7 +27,7 @@ Distiller 是個人社群知識收集系統。手動收集 Instagram、Facebook�
 
 ```
 distiller/
-├── CLAUDE.md
+├── AGENTS.md
 ├── distiller-project-spec.md
 ├── ios/                          # Xcode 專案（主要開發目標）
 │   └── Distiller/
